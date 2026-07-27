@@ -9,7 +9,6 @@ import { ThemeProvider } from "next-themes";
 import ChatsPage from "./page";
 import { createThread, updateThread, listThreads, deleteThread } from "@/features/chat/lib/chat-db";
 import { ROUTES } from "@/config/routes";
-import { POOL_MODEL_ID } from "@/config/models";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),

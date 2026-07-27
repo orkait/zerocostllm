@@ -159,7 +159,3 @@ export async function getStorageEstimate(): Promise<{ usage: number; quota: numb
   return { usage: estimate.usage ?? 0, quota: estimate.quota ?? 0 };
 }
 
-export async function requestPersistence(): Promise<boolean> {
-  if (typeof navigator === "undefined" || !navigator.storage?.persist) return false;
-  return navigator.storage.persist();
-}

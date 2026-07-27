@@ -18,6 +18,21 @@ describe("provider registry", () => {
     expect(providerForModel("cerebras/gemma-4-31b")).toBe("cerebras");
     expect(providerForModel("ollama/qwen3")).toBe("ollama");
     expect(providerForModel("openrouter/anthropic/claude-3-opus")).toBe("openrouter");
+    expect(providerForModel("local/Ternary-Bonsai-27B")).toBe("local");
+  });
+
+  it("a local model is NOT mistaken for an OpenRouter one", () => {
+    // The whole point of registering `local`. Without it providerForModel fell through to the
+    // OpenRouter fallback, which sent the user's OpenRouter key in X-Provider-Key for a model
+    // running on their own machine, and listed local models under the OpenRouter filter.
+    expect(providerForModel("local/x")).not.toBe(FALLBACK_PROVIDER);
+    expect(isDirectlyRoutedProvider("Local")).toBe(true);
+    expect(PROVIDER_BY_BACKEND_LABEL["Local"]).toBe("local");
+  });
+
+  it("only the local provider takes no credential", () => {
+    const keyless = PROVIDER_IDS.filter((id) => !PROVIDERS[id].needsKey);
+    expect(keyless).toEqual(["local"]);
   });
 
   it("an unprefixed model falls back to OpenRouter, as the backend does", () => {

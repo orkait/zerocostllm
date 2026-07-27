@@ -92,6 +92,8 @@ export default function ChatsPage() {
   const [query, setQuery] = useState("");
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [bulkConfirm, setBulkConfirm] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   // Server-ish state belongs in React Query, not in a useEffect that setStates on mount. Deleting a
   // thread invalidates the whole thread namespace, so the list and the storage estimate both re-read.
@@ -99,7 +101,10 @@ export default function ChatsPage() {
   const { data: estimate = null } = useStorageEstimate();
   const removeThread = useDeleteThread();
 
-  const closeBulkConfirm = useCallback(() => setBulkConfirm(false), []);
+  const closeBulkConfirm = useCallback(() => {
+    setBulkConfirm(false);
+    setBulkError(null);
+  }, []);
   const { helpOpen, openHelp, closeHelp } = useShellOverlays({ onEscape: closeBulkConfirm });
 
   const stats = useMemo(
@@ -114,7 +119,10 @@ export default function ChatsPage() {
     setQuery(e.target.value);
   }, []);
 
-  const askBulkDelete = useCallback(() => setBulkConfirm(true), []);
+  const askBulkDelete = useCallback(() => {
+    setBulkError(null);
+    setBulkConfirm(true);
+  }, []);
 
   const clearPendingDelete = useCallback(() => setPendingDeleteId(null), []);
 
@@ -127,9 +135,25 @@ export default function ChatsPage() {
     [removeThread],
   );
 
+  /** Every thread is attempted, and a failure is reported.
+   *
+   * This was a sequential `for ... await` with no error handling: the first rejection aborted the
+   * loop, left the remaining threads untouched, and left the dialog open showing nothing - the user
+   * saw a button that appeared to do nothing. allSettled attempts all of them, and whatever failed
+   * is still on screen afterwards for a retry. */
   const confirmBulkDelete = useCallback(() => {
     const removeAll = async () => {
-      for (const thread of threads) await removeThread.mutateAsync(thread.id);
+      setBulkBusy(true);
+      setBulkError(null);
+      const results = await Promise.allSettled(
+        threads.map((thread) => removeThread.mutateAsync(thread.id)),
+      );
+      setBulkBusy(false);
+      const failed = results.filter((result) => result.status === "rejected").length;
+      if (failed > 0) {
+        setBulkError(`${failed} of ${results.length} could not be deleted. The rest were removed.`);
+        return;
+      }
       setBulkConfirm(false);
     };
     void removeAll();
@@ -184,6 +208,8 @@ export default function ChatsPage() {
       {bulkConfirm ? (
         <BulkDeleteDialog
           count={stats.total}
+          busy={bulkBusy}
+          error={bulkError}
           onCancel={closeBulkConfirm}
           onConfirm={confirmBulkDelete}
         />
@@ -330,26 +356,36 @@ function ThreadRow({
 
 function BulkDeleteDialog({
   count,
+  busy,
+  error,
   onCancel,
   onConfirm,
 }: {
   count: number;
+  busy: boolean;
+  error: string | null;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
   return (
     <div className="fixed inset-0 z-(--z-modal) flex items-center justify-center bg-black/60 backdrop-blur-overlay">
-      <div className="rounded-lg bg-(--color-surface-1) border border-(--color-border) p-5 max-w-popover w-full">
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-label="Delete all threads"
+        className="rounded-lg bg-(--color-surface-1) border border-(--color-border) p-5 max-w-popover w-full"
+      >
         <h2 className="text-lg font-semibold mb-1">Delete all threads?</h2>
         <p className="text-sm text-(--color-fg-muted) mb-4">
           {count} threads will be permanently removed. This cannot be undone.
         </p>
+        {error ? <p className="text-sm text-(--color-danger) mb-4">{error}</p> : null}
         <div className="flex gap-2 justify-end">
-          <Button variant="outline" onClick={onCancel}>
-            Cancel
+          <Button variant="outline" onClick={onCancel} disabled={busy}>
+            {error ? "Close" : "Cancel"}
           </Button>
-          <Button variant="destructive" onClick={onConfirm}>
-            Delete all
+          <Button variant="destructive" onClick={onConfirm} disabled={busy}>
+            {busy ? "Deleting..." : error ? "Retry" : "Delete all"}
           </Button>
         </div>
       </div>

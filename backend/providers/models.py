@@ -151,18 +151,20 @@ async def fetch_unified_models() -> dict:
     from .groq import fetch_groq_models
     from .cerebras import fetch_cerebras_models
     from .cloudflare import fetch_cloudflare_models
+    from .local import fetch_local_models
 
     async with httpx.AsyncClient() as client:
         ollama_task = _fetch_ollama_models(client)
         aistudio_task = _fetch_aistudio_models(client)
         openrouter_task = _fetch_openrouter_models(client)
-        ollama_raw, aistudio_raw, openrouter_raw, groq_raw, cerebras_raw, cloudflare_raw = await asyncio.gather(
+        ollama_raw, aistudio_raw, openrouter_raw, groq_raw, cerebras_raw, cloudflare_raw, local_raw = await asyncio.gather(
             ollama_task,
             aistudio_task,
             openrouter_task,
             fetch_groq_models(),
             fetch_cerebras_models(),
             fetch_cloudflare_models(),
+            fetch_local_models(),
         )
 
     data = []
@@ -183,6 +185,11 @@ async def fetch_unified_models() -> dict:
         if not slug:
             continue
         data.append({"id": f"cloudflare/{slug}", "object": "model", "created": None, "owned_by": "cloudflare"})
+    for m in local_raw:
+        slug = m.get("id", "")
+        if not slug:
+            continue
+        data.append({"id": f"local/{slug}", "object": "model", "created": m.get("created"), "owned_by": "local"})
     for m in openrouter_raw:
         data.append({"id": m["id"], "object": "model", "created": m.get("created"), "owned_by": "openrouter"})
 

@@ -125,6 +125,12 @@ def _minmax(vals: list[float | None]) -> tuple[float, float]:
     return min(present), max(present)
 
 
+def _default(x: float | None, fallback: float) -> float:
+    """`x` unless it is genuinely absent. Distinct from `x or fallback`, which also swallows 0.0 -
+    and 0.0 is a real score here (worst in the pool), not a missing one."""
+    return fallback if x is None else x
+
+
 def _norm(x: float | None, lo: float, hi: float) -> float | None:
     """Min-max to 0..100, or None when x is absent. hi==lo → mid (50) so a degenerate range is neutral."""
     if x is None:
@@ -197,7 +203,7 @@ def score_models(models: list[Model]) -> list[Model]:
         if ri is not None:
             intelligence = _clamp(ri / INTEL_CEIL * 100.0)
         else:
-            intelligence = 0.6 * (_norm(m.get("capability"), cap_lo, cap_hi) or 0.0)
+            intelligence = 0.6 * _default(_norm(m.get("capability"), cap_lo, cap_hi), 0.0)
         # Dimensions grounded in the real benches; fall back to AA's aggregate index (already 0..100),
         # then to general intelligence. Coverage: coding/reasoning/agentic have strong bench coverage.
         benches = m.get("benches") or {}
@@ -220,14 +226,18 @@ def score_models(models: list[Model]) -> list[Model]:
         speed_est = speed is None
         if speed_est:  # throughput not measured → provider-class prior (fast free lanes not punished)
             speed = _speed_prior(m)
-        context = _norm(r["ctx"], ctx_lo, ctx_hi) or 0.0
+        context = _default(_norm(r["ctx"], ctx_lo, ctx_hi), 0.0)
 
         if m.get("is_free"):
             affordability = 100.0
             value = _clamp(0.5 * 100.0 + 0.5 * intelligence)  # free + smart tops value; free + dumb mid
         elif r["price"]:
-            affordability = _norm(-math.log10(r["price"] + 0.001), aff_lo, aff_hi) or 50.0
-            value = _norm(_log10p(r["value"]), val_lo, val_hi) or 50.0
+            # `_default(x, 50.0)`, not `x or 50.0`. The most expensive model in the pool normalizes to
+            # exactly 0.0 - which is falsy - so `or` silently promoted the worst affordability (and
+            # the worst value) in the market to the NEUTRAL 50, the same score meaning "price
+            # unknown". Only a genuinely absent value may fall back.
+            affordability = _default(_norm(-math.log10(r["price"] + 0.001), aff_lo, aff_hi), 50.0)
+            value = _default(_norm(_log10p(r["value"]), val_lo, val_hi), 50.0)
         else:
             affordability = 60.0  # unknown price → cautiously neutral
             value = 50.0

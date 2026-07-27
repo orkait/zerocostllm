@@ -1,5 +1,5 @@
 "use client";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { useUIStore } from "@/stores/ui-store";
 import { useGlobalHotkeys } from "@/lib/use-global-hotkeys";
 import type { ModelStats } from "@/types/model";
@@ -42,14 +42,22 @@ export function useMarketHotkeys({ filtered, drawerModelId, helpOpen, setHelpOpe
     if (helpOpen) return setHelpOpen(false);
   }, [cmdkOpen, drawerModelId, helpOpen, setCmdk, closeDrawer, setHelpOpen]);
 
-  useGlobalHotkeys({
-    "cmdk.toggle": toggleCmdk,
-    "search.focus": focusSearch,
-    "drawer.next": nextModel,
-    "drawer.prev": prevModel,
-    "overlay.close": closeTopOverlay,
-    "help.toggle": toggleHelp,
-  });
+  // Memoized, like useShellOverlays does. A fresh object literal here is a new dependency every
+  // render, so useGlobalHotkeys tore down and re-attached its window listener on every keystroke
+  // that changed a filter.
+  const handlers = useMemo(
+    () => ({
+      "cmdk.toggle": toggleCmdk,
+      "search.focus": focusSearch,
+      "drawer.next": nextModel,
+      "drawer.prev": prevModel,
+      "overlay.close": closeTopOverlay,
+      "help.toggle": toggleHelp,
+    }),
+    [toggleCmdk, focusSearch, nextModel, prevModel, closeTopOverlay, toggleHelp],
+  );
+
+  useGlobalHotkeys(handlers);
 }
 
 function clamp(value: number, min: number, max: number): number {

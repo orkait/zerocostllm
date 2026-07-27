@@ -26,6 +26,18 @@ from providers.cerebras import (
     strip_cerebras_prefix,
     get_cerebras_api_key,
 )
+from providers.local import (
+    fetch_local_models,
+    build_local_market_stats,
+    is_local_model,
+    strip_local_prefix,
+    get_local_base_url,
+    get_local_api_key,
+    apply_local_request_defaults,
+    apply_local_reasoning_prompt,
+    strip_reasoning,
+    strip_reasoning_chunk,
+)
 from providers.cloudflare import (
     fetch_cloudflare_models,
     build_cloudflare_market_stats,
@@ -135,12 +147,20 @@ async def _probe_sweep() -> None:
     """
     while True:
         try:
-            models, _ = await _rankings_cache.get_or_compute(_compute_rankings)
+            # The SAME compute the request path uses. It used to call _compute_rankings directly, so
+            # a cycle the sweep happened to populate wrote no snapshot at all - the cache was warm
+            # and the request that would have persisted it never ran the compute.
+            models, _ = await _rankings_cache.get_or_compute(_compute_and_persist)
             targets = pick_unverified(models, availability)
             if targets:
                 verdicts = await probe_models(targets, _probe_one, availability)
                 gone = [m for m, v in verdicts.items() if v == "unavailable"]
                 print(f"availability: probed {len(targets)}, quarantined {len(gone)}")
+            # Reload the mirror from Postgres. Writes already update it in memory, so this is about
+            # OTHER instances: without it a horizontally scaled deploy never learns what its peers
+            # quarantined until it restarts.
+            if db.is_configured():
+                await availability.refresh()
         except Exception as e:  # a broken sweep must never take the API down
             print(f"availability sweep error: {e}")
         await asyncio.sleep(PROBE_INTERVAL)
@@ -156,6 +176,12 @@ async def lifespan(app: FastAPI):
         # The quarantine mirror must be warm BEFORE the first request, or a fresh instance serves a
         # market full of models it already knows are dead.
         await availability.refresh()
+        # Answer from the last persisted market instead of refetching ~10 upstreams first. Seeded on
+        # a short TTL, so the first request is instant AND a real refresh still lands shortly after.
+        snapshot = await market_store.latest_snapshot()
+        if snapshot:
+            _rankings_cache.prime(snapshot, SNAPSHOT_PRIME_TTL)
+            print(f"market: primed from snapshot ({len(snapshot)} models)", flush=True)
 
     sweep = asyncio.create_task(_probe_sweep())
     try:
@@ -282,11 +308,6 @@ async def require_admin(authorization: str | None = Header(default=None)) -> Non
         raise HTTPException(status_code=401, detail="Invalid admin token")
 
 
-async def require_auth(authorization: str | None = Header(default=None)):
-    """Kept so existing routes keep working while they migrate to require_scope()."""
-    await resolve_caller(authorization)
-
-
 # ===== Model resolution =====
 
 def resolve_model(
@@ -320,6 +341,15 @@ def resolve_model(
         return f"openai/{slug}", {
             "api_base": cloudflare_openai_base(cf_account_id or env_account),
             "api_key": user_key or env_key,
+        }
+
+    if is_local_model(model_id):
+        # Local server speaks the OpenAI API, so it rides the generic openai/ path with
+        # an api_base. No BYOK: the endpoint is the user's own machine.
+        slug = strip_local_prefix(model_id)
+        return f"openai/{slug}", {
+            "api_base": get_local_base_url(),
+            "api_key": get_local_api_key(),
         }
 
     if model_id.startswith("ollama/"):
@@ -390,6 +420,14 @@ async def chat_completions(request: Request, caller: ApiKey | None = Depends(req
     messages = body.get("messages", [])
     stream: bool = body.get("stream", False)
 
+    # A local reasoning model returns empty content when a small token budget is spent
+    # inside its <think> block; fold in the guard before passthrough is assembled, and
+    # keep its chain-of-thought brief (measured 56% fewer completion tokens, 2.3x faster,
+    # same answer) rather than turning reasoning off.
+    if is_local_model(model_id):
+        body = {**body, **apply_local_request_defaults(body)}
+        messages = apply_local_reasoning_prompt(messages)
+
     passthrough = {
         k: v for k, v in body.items()
         if k not in {"model", "messages", "stream"}
@@ -405,16 +443,41 @@ async def chat_completions(request: Request, caller: ApiKey | None = Depends(req
                 **passthrough,
             )
 
+            hide_reasoning = is_local_model(model_id)
+
             async def event_stream():
+                # A streamed request used to be metered NOWHERE: only the non-stream path recorded a
+                # usage row. Since the rate limiter counts those same rows, and the UI always
+                # streams, streaming was both unbilled and unlimited - a free hole straight through
+                # the quota. The verdict is recorded in `finally`, so a client that disconnects
+                # mid-reply is still accounted for.
+                usage_block: dict | None = None
+                status_code = 200
                 try:
                     async for chunk in response:
-                        payload = chunk.model_dump_json()
+                        chunk_usage = getattr(chunk, "usage", None)
+                        if chunk_usage is not None:
+                            usage_block = (
+                                chunk_usage if isinstance(chunk_usage, dict) else chunk_usage.model_dump()
+                            )
+                        if hide_reasoning:
+                            # Re-serialize only when we actually have to edit the chunk.
+                            import json as _json
+                            payload = _json.dumps(strip_reasoning_chunk(chunk.model_dump()))
+                        else:
+                            payload = chunk.model_dump_json()
                         yield f"data: {payload}\n\n"
                 except Exception as e:
+                    status_code = getattr(e, "status_code", 500) or 500
+                    # Same rule as the non-stream path: only a failure on OUR key says anything about
+                    # the model, so a user's revoked or out-of-quota key cannot quarantine it.
+                    if user_key is None:
+                        record_call_failure(availability, model_id, status_code, str(e))
                     err = {"error": {"message": str(e), "type": "api_error", "code": getattr(e, "status_code", None)}}
                     import json as _json
                     yield f"data: {_json.dumps(err)}\n\n"
                 finally:
+                    _meter(caller, "/v1/chat/completions", status_code, model_id, usage_block)
                     yield "data: [DONE]\n\n"
 
             return StreamingResponse(
@@ -436,6 +499,8 @@ async def chat_completions(request: Request, caller: ApiKey | None = Depends(req
         )
         payload = response.model_dump()
         _meter(caller, "/v1/chat/completions", 200, model_id, payload.get("usage"))
+        if is_local_model(model_id):
+            payload = strip_reasoning(payload)
         return JSONResponse(content=payload)
 
     except HTTPException:
@@ -453,8 +518,11 @@ async def chat_completions(request: Request, caller: ApiKey | None = Depends(req
 
 # ===== Embeddings =====
 
-@app.post("/v1/embeddings", dependencies=[Depends(require_auth)])
-async def embeddings(request: Request) -> Any:
+# Scoped, not merely authenticated. This used to sit behind require_auth, which checks that a key is
+# VALID and never that it is ALLOWED - so a market-only key could spend inference here, through the
+# one inference endpoint that was not scope-checked.
+@app.post("/v1/embeddings")
+async def embeddings(request: Request, caller: ApiKey | None = Depends(require_scope(Scope.INFERENCE))) -> Any:
     body = await request.json()
     model_id: str = body.get("model", "")
     if not model_id:
@@ -476,24 +544,37 @@ async def embeddings(request: Request) -> Any:
             **extra,
             **passthrough,
         )
-        return JSONResponse(content=response.model_dump())
+        payload = response.model_dump()
+        _meter(caller, "/v1/embeddings", 200, model_id, payload.get("usage"))
+        return JSONResponse(content=payload)
     except HTTPException:
         raise
     except Exception as e:
         status = getattr(e, "status_code", 500) or 500
         if user_key is None:
             record_call_failure(availability, model_id, status, str(e))
+        _meter(caller, "/v1/embeddings", status, model_id)
         raise HTTPException(status_code=status, detail=str(e))
 
 
 # ===== Models =====
 
+# The catalogue is 7 upstream calls, and it was uncached while /v1/rankings - which fetches strictly
+# more - was cached for 30 minutes. Same 1800s default; both describe the same underlying data.
+MODELS_CACHE_TTL = float(os.getenv("MODELS_CACHE_TTL", "1800"))
+_models_cache: AsyncTTLCache[dict] = AsyncTTLCache(ttl=MODELS_CACHE_TTL)
+
+
 @app.get("/v1/models")
 async def models(caller: ApiKey | None = Depends(require_scope(Scope.MARKET))):
+    listing, _ = await _models_cache.get_or_compute(fetch_unified_models)
     _meter(caller, "/v1/models", 200, None)
-    result = await fetch_unified_models()
-    result["data"] = filter_available(result.get("data", []), availability)
-    return JSONResponse(content=result)
+    # A NEW dict every time. Assigning the filtered list back into `listing` would write through to
+    # the cached object, so one quarantined model would stay missing for the rest of the TTL even
+    # after its quarantine expired.
+    return JSONResponse(
+        content={**listing, "data": filter_available(listing.get("data", []), availability)}
+    )
 
 
 # MUST be declared before /v1/models/{model_id:path}: that route is greedy (`:path` matches slashes)
@@ -508,9 +589,9 @@ async def model_history(model_id: str, days: int = 30, caller: ApiKey | None = D
     return {"model_id": model_id, "days": days, "data": await market_store.history(model_id, days)}
 
 
-@app.get("/v1/models/{model_id:path}", dependencies=[Depends(require_auth)])
-async def model_get(model_id: str):
-    listing = await fetch_unified_models()
+@app.get("/v1/models/{model_id:path}")
+async def model_get(model_id: str, _: ApiKey | None = Depends(require_scope(Scope.MARKET))):
+    listing, _hit = await _models_cache.get_or_compute(fetch_unified_models)
     found = next((m for m in listing.get("data", []) if m.get("id") == model_id), None)
     if not found:
         raise HTTPException(status_code=404, detail=f"Model '{model_id}' not found")
@@ -601,20 +682,23 @@ async def _compute_rankings() -> list[dict]:
         groq_raw,
         cerebras_raw,
         cloudflare_raw,
+        local_raw,
     ) = await asyncio.gather(
         fetch_market_data(),
         fetch_unified_market_stats(),
         fetch_groq_models(),
         fetch_cerebras_models(),
         fetch_cloudflare_models(),
+        fetch_local_models(),
     )
 
     ollama_stats, aistudio_stats = unified_extra
     groq_stats = build_groq_market_stats(groq_raw)
     cerebras_stats = build_cerebras_market_stats(cerebras_raw)
     cloudflare_stats = build_cloudflare_market_stats(cloudflare_raw)
+    local_stats = build_local_market_stats(local_raw)
 
-    extras = ollama_stats + aistudio_stats + groq_stats + cerebras_stats + cloudflare_stats
+    extras = ollama_stats + aistudio_stats + groq_stats + cerebras_stats + cloudflare_stats + local_stats
     all_stats = openrouter_stats + extras
     if not all_stats:
         return []
@@ -644,6 +728,10 @@ async def _compute_rankings() -> list[dict]:
 RANKINGS_CACHE_TTL = float(os.getenv("RANKINGS_CACHE_TTL", "1800"))
 _rankings_cache: AsyncTTLCache[list[dict]] = AsyncTTLCache(ttl=RANKINGS_CACHE_TTL)
 
+# How long a snapshot seeded at startup is trusted. Deliberately much shorter than the full TTL: it
+# exists to make the FIRST request instant, not to serve half-hour-old data for half an hour.
+SNAPSHOT_PRIME_TTL = float(os.getenv("SNAPSHOT_PRIME_TTL", "120"))
+
 
 async def _compute_and_persist() -> list[dict]:
     """Compute the market, then persist it: the snapshot is what lets the NEXT cold instance answer
@@ -657,9 +745,10 @@ async def _compute_and_persist() -> list[dict]:
 async def rankings(caller: ApiKey | None = Depends(require_scope(Scope.MARKET))):
     # Metered, not just authorised. The rate limiter counts the SAME rows the usage report bills
     # from, so an endpoint that is not metered is also not rate-limited - it would be a free hole
-    # straight through the quota.
-    _meter(caller, "/v1/rankings", 200, None)
+    # straight through the quota. Metered AFTER the work: recording 200 before doing anything books
+    # a success for a request that may be about to fail.
     data, hit = await _rankings_cache.get_or_compute(_compute_and_persist)
+    _meter(caller, "/v1/rankings", 200, None)
     # Filtered on read, not inside the cached compute: a quarantine then takes effect on the next
     # request instead of waiting out the 30-min TTL, and the prober still sees the full catalogue.
     return JSONResponse(

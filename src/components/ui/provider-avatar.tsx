@@ -10,6 +10,7 @@ const PROVIDER_VAR: Record<string, string> = {
   "Cerebras": "var(--color-provider-cerebras)",
   "Cloudflare Workers AI": "var(--color-provider-cloudflare)",
   "OpenRouter": "var(--color-provider-openrouter)",
+  "Local": "var(--color-provider-local)",
 };
 
 const FALLBACK_HUES = [340, 25, 60, 95, 130, 175, 210, 250, 290, 315];

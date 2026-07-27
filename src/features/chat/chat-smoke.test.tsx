@@ -32,7 +32,6 @@ vi.mock("@/features/chat/lib/chat-db", () => ({
   deleteThread: async () => undefined,
   searchThreads: async () => [],
   getStorageEstimate: async () => null,
-  requestPersistence: async () => false,
 }));
 
 beforeEach(() => {
