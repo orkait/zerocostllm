@@ -92,3 +92,49 @@ def test_single_flight_concurrent_callers_compute_once():
     results = asyncio.run(run())
     assert all(v == ["x"] for v, _ in results)
     assert calls["n"] == 1  # lock collapses the stampede to a single compute
+
+
+def test_prime_seeds_the_cache_so_the_first_read_is_a_hit():
+    """A cold instance answers from the last persisted snapshot instead of refetching ~10 upstreams
+    before its first reply."""
+    clock = Clock()
+    cache = AsyncTTLCache(ttl=1800, clock=clock)
+    calls = {"n": 0}
+
+    async def compute():
+        calls["n"] += 1
+        return ["fresh"]
+
+    cache.prime(["snapshot"], ttl=120)
+
+    value, hit = asyncio.run(cache.get_or_compute(compute))
+    assert value == ["snapshot"] and hit is True
+    assert calls["n"] == 0  # nothing was fetched
+
+
+def test_a_primed_snapshot_expires_on_its_own_short_ttl():
+    """The point of the override: seed for 2 minutes, not for the full 30, so a real refresh still
+    happens promptly rather than pinning startup-time data for the whole TTL."""
+    clock = Clock()
+    cache = AsyncTTLCache(ttl=1800, clock=clock)
+
+    async def compute():
+        return ["fresh"]
+
+    cache.prime(["snapshot"], ttl=120)
+    clock.t = 121.0
+    value, hit = asyncio.run(cache.get_or_compute(compute))
+    assert value == ["fresh"] and hit is False
+
+
+def test_priming_with_nothing_is_a_no_op():
+    """An instance with no snapshot yet must not pin an empty market as if it were real."""
+    clock = Clock()
+    cache = AsyncTTLCache(ttl=1800, clock=clock)
+
+    async def compute():
+        return ["fresh"]
+
+    cache.prime([])
+    value, hit = asyncio.run(cache.get_or_compute(compute))
+    assert value == ["fresh"] and hit is False

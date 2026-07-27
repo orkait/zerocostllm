@@ -12,6 +12,7 @@ export const PROVIDER_IDS = [
   "aistudio",
   "ollama",
   "cloudflare",
+  "local",
 ] as const;
 
 export type ProviderId = (typeof PROVIDER_IDS)[number];
@@ -35,15 +36,22 @@ type ProviderSpec = {
   readonly keyHint: string;
   /** True when the provider needs a second credential beyond the API key. */
   readonly needsAccountId: boolean;
+  /** False when the provider takes no credential at all, so the API-keys form must not offer a
+   *  field for it. A local server's auth is that it is reachable on your own machine. */
+  readonly needsKey: boolean;
 };
 
 export const PROVIDERS: Readonly<Record<ProviderId, ProviderSpec>> = {
-  groq: { id: "groq", label: "Groq", shortLabel: "Groq", backendLabel: "Groq", prefix: "groq/", dotVar: "var(--color-provider-groq)", keyHint: "gsk_...", needsAccountId: false },
-  openrouter: { id: "openrouter", label: "OpenRouter", shortLabel: "OpenRouter", backendLabel: null, prefix: "openrouter/", dotVar: "var(--color-provider-openrouter)", keyHint: "sk-or-v1-...", needsAccountId: false },
-  cerebras: { id: "cerebras", label: "Cerebras", shortLabel: "Cerebras", backendLabel: "Cerebras", prefix: "cerebras/", dotVar: "var(--color-provider-cerebras)", keyHint: "csk-...", needsAccountId: false },
-  aistudio: { id: "aistudio", label: "Google AI Studio", shortLabel: "AI Studio", backendLabel: "Google AI Studio", prefix: "aistudio/", dotVar: "var(--color-provider-aistudio)", keyHint: "AIza...", needsAccountId: false },
-  ollama: { id: "ollama", label: "Ollama Cloud", shortLabel: "Ollama", backendLabel: "Ollama", prefix: "ollama/", dotVar: "var(--color-provider-ollama)", keyHint: "", needsAccountId: false },
-  cloudflare: { id: "cloudflare", label: "Cloudflare Workers AI", shortLabel: "Cloudflare", backendLabel: "Cloudflare Workers AI", prefix: "cloudflare/", dotVar: "var(--color-provider-cloudflare)", keyHint: "", needsAccountId: true },
+  groq: { id: "groq", label: "Groq", shortLabel: "Groq", backendLabel: "Groq", prefix: "groq/", dotVar: "var(--color-provider-groq)", keyHint: "gsk_...", needsAccountId: false, needsKey: true },
+  openrouter: { id: "openrouter", label: "OpenRouter", shortLabel: "OpenRouter", backendLabel: null, prefix: "openrouter/", dotVar: "var(--color-provider-openrouter)", keyHint: "sk-or-v1-...", needsAccountId: false, needsKey: true },
+  cerebras: { id: "cerebras", label: "Cerebras", shortLabel: "Cerebras", backendLabel: "Cerebras", prefix: "cerebras/", dotVar: "var(--color-provider-cerebras)", keyHint: "csk-...", needsAccountId: false, needsKey: true },
+  aistudio: { id: "aistudio", label: "Google AI Studio", shortLabel: "AI Studio", backendLabel: "Google AI Studio", prefix: "aistudio/", dotVar: "var(--color-provider-aistudio)", keyHint: "AIza...", needsAccountId: false, needsKey: true },
+  ollama: { id: "ollama", label: "Ollama Cloud", shortLabel: "Ollama", backendLabel: "Ollama", prefix: "ollama/", dotVar: "var(--color-provider-ollama)", keyHint: "", needsAccountId: false, needsKey: true },
+  cloudflare: { id: "cloudflare", label: "Cloudflare Workers AI", shortLabel: "Cloudflare", backendLabel: "Cloudflare Workers AI", prefix: "cloudflare/", dotVar: "var(--color-provider-cloudflare)", keyHint: "", needsAccountId: true, needsKey: true },
+  // Your own machine. `backendLabel` matches LOCAL_PROVIDER_NAME in backend/providers/local.py, and
+  // needsKey is false because presence on LOCAL_LLM_BASE_URL is the only auth there is - offering a
+  // key field would ask for a credential that nothing reads.
+  local: { id: "local", label: "Local", shortLabel: "Local", backendLabel: "Local", prefix: "local/", dotVar: "var(--color-provider-local)", keyHint: "", needsAccountId: false, needsKey: false },
 } as const;
 
 /** Backend provider name -> our provider id. Derived, so it cannot drift from PROVIDERS. */

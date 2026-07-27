@@ -1,365 +1,231 @@
-# DESIGN.md - Gratis Dashboard
+# DESIGN.md - Gratis
 
-## 1. Visual Theme & Atmosphere
+The design contract, transcribed from what actually ships. Every token below is read from
+`src/app/globals.css`; every dependency from `package.json`. If the two disagree, the code is right
+and this file is a bug.
 
-**Product:** Gratis - real-time market intelligence for free LLM models across 7 providers (OpenRouter, Ollama Cloud, Cerebras, Groq, Cloudflare Workers AI, Google AI Studio, +). OpenAI-compatible proxy.
-
-**Personality:** **premium-precision** (Linear-inspired) with technical-developer density.
-
-**Emotional target:** technical · precise · trustworthy · fast.
-
-**Identity:** *"Engineered LLM market terminal."* Information-first. Zero ornament. Opacity-based hierarchy. No decoration that doesn't carry information.
-
-**Inspirations:** Linear (opacity scale, 8px grid, single accent), Vercel (monospace data accents), Raycast (Cmd+K, compact rows).
-
-**Anti-pose:** Not Supabase emerald glow, not Warp terminal-block, not bento-grid Raycast splash. Linear discipline.
+> The previous version of this document described a cool indigo-violet Linear palette (hue 265),
+> shadcn/ui and SWR. None of that is in the app: the palette was replaced by a warm clay-on-ivory
+> system, the components are Base UI, and the data layer is TanStack Query. A design doc that
+> contradicts the product is worse than no design doc, because people build against it.
 
 ---
 
-## 2. Color Palette
+## 1. Identity
 
-**Strategy:** Mono surfaces (warm-cool-cool) + single deliberate accent. Dark-default (data-dense workload), light-mode supported. OKLCH only.
+**Product:** real-time market intelligence for free LLM models across 7 providers, plus an
+OpenAI-compatible proxy and a chat client for them.
 
-### Brand Ramp (Indigo-Violet, hue 265)
+**Personality:** warm-editorial density. Information-first, but not cold - a serif display face over
+a dense data table, on ivory rather than clinical grey.
 
-```
---brand-50:  oklch(0.97 0.020 265);
---brand-100: oklch(0.93 0.040 265);
---brand-200: oklch(0.87 0.080 265);
---brand-300: oklch(0.78 0.120 265);
---brand-400: oklch(0.68 0.150 265);
---brand-500: oklch(0.60 0.165 265);   /* primary accent */
---brand-600: oklch(0.52 0.165 265);
---brand-700: oklch(0.44 0.145 265);
---brand-800: oklch(0.36 0.110 265);
---brand-900: oklch(0.28 0.075 265);
---brand-950: oklch(0.18 0.045 265);
-```
+**Emotional target:** technical · precise · trustworthy · unhurried.
 
-**Why hue 265 not #6366F1:** Linear's signature with intent. Chroma 0.165 (lower than AI-purple 0.20+). Single accent system — no secondary brand color.
+**Two surfaces, one system.** The market and the chat used to run different design systems - a cool
+dark dashboard and a warm ivory `.theme-editorial` that hardcoded light values and ignored the theme
+toggle entirely. They are now the same tokens, and both honour light and dark.
 
-### Neutral Ramp (Cool, hue 260, chroma 0.008)
+**Honesty is a design rule here, not a nicety.** This product's whole claim is that its numbers mean
+something, so the UI must never render an inference as if it were a measurement:
+- an unknown parameter count shows nothing, never `1B`
+- a lens ranked on a provider-class prior says so, inline (see `TaskLens`)
+- an estimated token count is prefixed `~`
+- a contested score carries a confidence dot with its bench count and cross-benchmark agreement
 
-```
---neutral-50:  oklch(0.985 0.004 260);
---neutral-100: oklch(0.965 0.005 260);
---neutral-200: oklch(0.925 0.006 260);
---neutral-300: oklch(0.870 0.007 260);
---neutral-400: oklch(0.690 0.008 260);
---neutral-500: oklch(0.530 0.008 260);
---neutral-600: oklch(0.420 0.008 260);
---neutral-700: oklch(0.330 0.008 260);
---neutral-800: oklch(0.230 0.008 260);
---neutral-850: oklch(0.180 0.008 260);
---neutral-900: oklch(0.140 0.008 260);
---neutral-950: oklch(0.090 0.008 260);
-```
+---
 
-### Semantic Tokens (Dark default)
+## 2. Color
 
-```
---bg:           oklch(0.115 0.008 260);  /* near-black, warm-cool */
---surface-1:    oklch(0.155 0.008 260);  /* cards */
---surface-2:    oklch(0.190 0.008 260);  /* elevated */
---surface-3:    oklch(0.230 0.008 260);  /* hover */
+OKLCH throughout. **Light is the base** (warm ivory); dark (espresso) is the override on
+`:root[data-theme="dark"]`. `next-themes` stamps `data-theme` on `<html>` before paint, so there is
+no flash and no `mounted` guard anywhere.
 
---fg:           oklch(0.95 0.005 260);   /* near-white, NOT pure */
---fg-muted:     oklch(0.72 0.006 260);   /* secondary text */
---fg-subtle:    oklch(0.50 0.008 260);   /* tertiary */
---fg-disabled:  oklch(0.36 0.008 260);
+### Semantic tokens
 
---border:       oklch(1 0 0 / 0.08);     /* opacity-based */
---border-strong:oklch(1 0 0 / 0.14);
---ring:         oklch(0.60 0.165 265);   /* brand-500 */
+| Token | Light | Dark |
+|---|---|---|
+| `--color-bg` | `oklch(0.985 0.010 78)` | `oklch(0.16 0.010 55)` |
+| `--color-fg` | `oklch(0.21 0.012 55)` | `oklch(0.94 0.010 75)` |
+| `--color-fg-muted` | `oklch(0.36 0.014 55)` | `oklch(0.80 0.012 70)` |
+| `--color-fg-subtle` | `oklch(0.47 0.015 60)` | `oklch(0.70 0.014 65)` |
+| `--color-fg-disabled` | `oklch(0.68 0.014 65)` | `oklch(0.45 0.012 55)` |
+| `--color-surface-1` | `oklch(0.978 0.011 76)` | `oklch(0.21 0.012 55)` |
+| `--color-surface-2` | `oklch(0.94 0.012 74)` | `oklch(0.26 0.012 55)` |
+| `--color-surface-3` | `oklch(0.90 0.014 72)` | `oklch(0.30 0.012 55)` |
+| `--color-border` | `oklch(0.89 0.014 70)` | `oklch(0.32 0.014 55)` |
+| `--color-border-strong` | `oklch(0.64 0.016 65)` | `oklch(0.53 0.014 55)` |
 
---accent:       oklch(0.60 0.165 265);
---accent-fg:    oklch(0.99 0 0);
---accent-soft:  oklch(0.60 0.165 265 / 0.12);
-```
+### Accent - clay, hue 45
 
-### Status Colors (each: solid + soft)
+| Token | Light | Dark |
+|---|---|---|
+| `--color-accent` | `oklch(0.56 0.14 45)` | `oklch(0.70 0.15 45)` |
+| `--color-accent-hover` | `oklch(0.52 0.135 45)` | `oklch(0.75 0.155 45)` |
+| `--color-accent-fg` | `oklch(0.99 0.008 78)` | `oklch(0.14 0.020 50)` |
+| `--color-accent-soft` | `accent / 0.12` | `accent / 0.16` |
 
-```
---success:        oklch(0.65 0.15 145);    --success-soft:    oklch(0.65 0.15 145 / 0.14);
---warning:        oklch(0.78 0.16 75);     --warning-soft:    oklch(0.78 0.16 75 / 0.14);
---danger:         oklch(0.62 0.20 25);     --danger-soft:     oklch(0.62 0.20 25 / 0.14);
---info:           oklch(0.68 0.13 230);    --info-soft:       oklch(0.68 0.13 230 / 0.14);
-```
+Single accent system. `--color-accent-hover` exists because the primary button's hover was once a
+hardcoded hue-265 blue left behind by the palette that no longer exists.
 
-### Provider Accent Tokens (chart-only, NOT for UI)
+### Status - each solid + soft
 
-```
---provider-openrouter:  oklch(0.68 0.18 35);   /* warm orange */
---provider-ollama:      oklch(0.62 0.16 200);  /* teal */
---provider-aistudio:    oklch(0.70 0.15 90);   /* yellow-green */
---provider-groq:        oklch(0.65 0.20 25);   /* red-orange */
---provider-cerebras:    oklch(0.60 0.16 290);  /* magenta */
---provider-cloudflare:  oklch(0.72 0.18 60);   /* amber */
-```
+| Role | Hue | Light | Dark |
+|---|---:|---|---|
+| success (moss) | 150 | `oklch(0.53 0.125 150)` | `oklch(0.72 0.13 150)` |
+| warning (amber) | 75 / 80 | `oklch(0.72 0.15 75)` | `oklch(0.83 0.14 80)` |
+| danger (rust) | 28 | `oklch(0.55 0.19 28)` | `oklch(0.72 0.15 28)` |
+| info (the one cool hue) | 235 | `oklch(0.52 0.11 235)` | `oklch(0.74 0.10 235)` |
 
-**Light mode:** redesigned, not inverted. `--bg: oklch(0.99 0.003 260)`, `--fg: oklch(0.13 0.005 260)`. Borders flip to `oklch(0 0 0 / 0.08)`.
+### Provider tokens - avatars and charts only, never UI accents
+
+`openrouter` 35 · `ollama` 200 · `aistudio` 90 · `groq` 25 · `cerebras` 290 · `cloudflare` 60 ·
+`local` 145.
+
+`local` is your own machine. Its green is deliberately the quietest of the seven: it is the only
+tier that is free without qualification, and it should read as calm, not as a status badge.
 
 ---
 
 ## 3. Typography
 
-**Stack:** Geist (sans) + Geist Mono. Fallback: Inter / system-ui.
+Two families plus a mono. `--font-sans` **Plus Jakarta Sans** · `--font-serif` **Lora** (the `.serif`
+class, used on display headings only) · `--font-mono` **Geist Mono** (all quantitative data).
 
-| Token | Size | LH | Weight | Tracking | Use |
-|---|---|---|---|---|---|
-| `display` | 28px | 1.10 | 600 | -0.025em | Page title |
-| `h1` | 22px | 1.20 | 600 | -0.022em | Section headings |
-| `h2` | 18px | 1.25 | 600 | -0.018em | Card titles |
-| `h3` | 15px | 1.30 | 600 | -0.012em | Subsections |
-| `body` | 14px | 1.50 | 400 | -0.011em | UI text |
-| `body-sm` | 13px | 1.45 | 400 | -0.005em | Secondary |
-| `caption` | 11px | 1.35 | 500 | 0.04em | Labels (UPPERCASE) |
-| `mono` | 13px | 1.40 | 400 | 0 | Numbers, IDs |
-| `mono-sm` | 11px | 1.35 | 500 | 0 | Badges |
+| Token | Size | Line height |
+|---|---:|---:|
+| `--text-2xs` | 11px | 1.35 |
+| `--text-xs` | 12px | 1.4 |
+| `--text-sm` | 14px | 1.45 |
+| `--text-base` | 15px | 1.55 |
+| `--text-lg` | 17px | 1.4 |
+| `--text-xl` | 20px | 1.3 |
+| `--text-2xl` | 24px | 1.25 |
+| `--text-3xl` | 28px | 1.15 |
+| `--text-4xl` | 32px | 1.1 |
 
-**Rules:**
-- Body 14px (compact density). Never `clamp()` on body.
-- Negative tracking on headings only.
-- Max 2 families: Geist + Geist Mono.
-- Quantitative data ALWAYS monospace + right-aligned (Tufte).
+**11px is a hard floor.** The scale before this one was defined and then ignored: 126 call sites
+wrote arbitrary values like `text-[8px]`, which is why the whole app read as microscopic. Nothing
+smaller than `--text-2xs` ships.
+
+Body is 15px with `-0.011em` tracking, set once in `@layer base`. Quantitative data is always
+monospace, right-aligned, `tabular-nums`.
 
 ---
 
-## 4. Spacing & Layout
+## 4. Spacing, radius, layout
 
-**Grid:** 8px base. All spacing = 4px multiples.
+4px grid. Radius is **sharp** on purpose - this is a data terminal, and round corners fight a grid:
+`--radius-sm 2 · md 4 · lg 6 · xl 8 · 2xl 12`. Four tokens govern every card in the app.
+
+| Container | Value | Use |
+|---|---:|---|
+| `--width-market` | 1280px | data surfaces, sized to the table's real content |
+| `--width-prose` | 1100px | chat, archive, settings |
+| `--container-measure` | 65ch | assistant replies |
+| `--container-drawer` | 440px | detail drawer |
+| `--container-dialog` | 640px | command palette, model picker |
+| `--container-popover` | 400px | help sheet, confirm dialogs |
+
+Shell: sidebar 240px (resizable 200-400, persisted), header 48px sticky, content padding 24px.
+
+**Market table column budget** lives in tokens so it can be reasoned about together:
+`rank 40 · model 416 · score 140 · signals (flex) · cost 96 · action 48`. Model is fixed and wide
+enough that names stop truncating; **signals is the column that absorbs slack**, and its meters fill
+it. Getting this backwards is what produced ~680px of dead space between the last bar and the cost
+column.
+
+---
+
+## 5. Motion
 
 | Token | Value | Use |
-|---|---|---|
-| `space-0.5` | 2px | Hairline |
-| `space-1` | 4px | Inline gaps |
-| `space-2` | 8px | Tight |
-| `space-3` | 12px | Group inner |
-| `space-4` | 16px | Default |
-| `space-5` | 20px | Card padding (compact) |
-| `space-6` | 24px | Card padding (default) |
-| `space-8` | 32px | Section gap |
-| `space-10` | 40px | Section gap (loose) |
-| `space-12` | 48px | Page section |
-| `space-16` | 64px | Major page section |
+|---|---:|---|
+| `DURATION.fast` | 120ms | hover, colour, opacity |
+| `DURATION.base` | 180ms | enter |
+| `DURATION.slow` | 250ms | drawer, sheet |
+| `--animate-shimmer` | 1.4s linear infinite | skeletons - the only linear easing allowed |
 
-**App shell:**
-- Sidebar: 240px fixed, full height, sticky.
-- Header: 48px fixed, sticky top.
-- Content max-width: 1440px. Min: 800px usable.
-- Page padding: 24px. Card padding: 20px.
-
-**Radius:** 4 / 6 / 8 / 10 / pill. Default 8px.
+Animate `transform` and `opacity` only. `prefers-reduced-motion: reduce` zeroes every duration with
+`!important` in `@layer base`, and overlays additionally carry `motion-reduce:transition-none`.
 
 ---
 
-## 5. Component Specs
+## 6. Elevation and z-index
 
-### Sidebar (240px, persistent)
-**Sections:** Logo · Provider filter chips · Capability toggles · Hardware sliders · Search · Footer.
-- Item: 32px tall, 8px radius, 12px horizontal pad. Icon 14px + label 13px.
-- Active: `--surface-2` bg + 2px accent left border. Inactive hover: `--surface-1`.
-- States: default / hover / active / focus (2px ring offset 2px).
+Dark mode uses surface progression, not shadows. Only two shadows exist, both for floating layers:
+`--shadow-popover` and `--shadow-drawer`.
 
-### Header (48px sticky)
-- Left: page title (display) + breadcrumb crumbs (body-sm muted).
-- Center: search trigger button (`Cmd+K · Search models...`, mono-sm badge).
-- Right: theme toggle, provider health pulse dot, settings icon button.
+```
+tooltip           1070   InfoTips float above everything, including the palette
+command           1065   ⌘K must clear any open modal
+command-backdrop  1060
+modal             1050   drawer · sheet · dialog panels
+modal-backdrop    1040
+sticky            1020   header
+```
 
-### KPI Strip (NEW — 5 cards)
-- 5-up grid: Total Models · Free Models · Active Providers · Best TPS · Median Capability.
-- Card: 80px tall, 20px pad, 8px radius, surface-1 bg, no shadow, 1px border.
-- Numeral: mono 22px weight 600. Label: caption uppercase muted. Trend: 11px mono ↑/↓ with success/danger.
-
-### Provider Filter Chips
-- 7 chips horizontal scroll, 28px tall, 12px pad.
-- Inactive: surface-1 + border. Active: `--accent-soft` bg + accent fg + 1px accent border.
-- States: default / hover (surface-2) / active / focus.
-
-### Model Table (primary content)
-- Compact rows 40px. Sticky header 36px.
-- Cols (12-col grid): Rank(60) · Model(380) · Provider(140) · Tier(80) · Caps(120) · Ctx(80) · TPS(80) · Score(100) · Action(56).
-- **Numbers:** mono, right-aligned, tabular-nums.
-- Row hover: `oklch(1 0 0 / 0.03)` bg + cursor pointer.
-- Active row (drawer open): `--accent-soft` bg + accent left border.
-- Badge: 18px tall pill, mono-sm. Free=success-soft. Brain/Tools=neutral chips.
-- Sortable header: hover shows subtle ↕ icon, active shows ↑/↓ accent.
-- Empty state: centered headline + sub + reset filters CTA.
-- Loading: 8 skeleton rows (animated shimmer).
-
-### Detail Drawer (NEW — slide-in 480px right)
-- Header: model id + provider chip + close icon.
-- Tabs: Overview · Code · Performance · Endpoints.
-- Code tab: copy-to-clipboard `curl` + python + node snippets, mono-13, syntax-highlight.
-- Footer: "Open in Chat" primary CTA.
-
-### Command Palette (NEW — Cmd+K)
-- Modal overlay, centered, 640px wide × max 480px tall.
-- Search input top, 14px, no border, autofocus.
-- Result groups: Models · Filters · Providers · Actions.
-- Item: 36px tall, kbd badge right (mono-sm). Selected: accent-soft bg.
-- Keyboard: ↑↓ navigate, Enter select, Esc close, Cmd+/ help.
-
-### Chat Modal
-- Replace existing daisyui modal. 720px wide × 80vh.
-- Message bubbles: user (accent-soft, right-aligned), assistant (surface-1, left-aligned).
-- Streaming: typing dot indicator + token-by-token append.
-- Footer: textarea (auto-grow), send button, model name + token count.
-
-### Buttons (variants)
-- **Primary:** accent bg, fg-on-accent, 32px (sm 28, lg 36), 8px radius, weight 500, 13px.
-- **Secondary:** surface-2 bg, fg, 1px border-strong.
-- **Ghost:** transparent, fg-muted, hover surface-1.
-- **Danger:** danger bg, white fg.
-- All: focus 2px ring offset 2px brand-500. Disabled opacity 0.5 pointer-events none.
-
-### Inputs
-- 32px tall, 8px radius, surface-1 bg, 1px border, focus border accent + 2px ring-soft.
-- Label above (caption uppercase muted). Helper text below body-sm muted.
-- Validation on blur. Error: 1px danger border + danger-soft icon prefix + body-sm danger msg below.
-
-### Badges/Chips
-- Provider: 18px, mono-sm, surface-2, 1px border. Free: success-soft. Open-source: brand-soft.
+**No ties.** A tie makes stacking depend on DOM order, which breaks silently. The old code mixed two
+scales - header at 1020, drawer backdrop at 70 - so opening the drawer dimmed the page and left the
+header blazing above it.
 
 ---
 
-## 6. Motion
+## 7. Component contracts
 
-**Tokens:**
-```
---motion-fast:   120ms   ease-out;   /* hover, color, opacity */
---motion-normal: 180ms   ease-out;   /* enter */
---motion-slow:   240ms   cubic-bezier(0.4, 0, 0.2, 1); /* drawer/modal */
-```
-
-**Rules:**
-- Animate ONLY `transform` + `opacity` (GPU). Never width/height/top/left.
-- Exit 80ms shorter than enter.
-- Drawer: 240ms slide from right (translateX).
-- Modal: 180ms fade + scale (0.97 → 1).
-- Row enter: 30ms stagger × max 12 rows on first paint (then no stagger).
-- Skeleton shimmer: 1.4s linear infinite (the only linear allowed).
-- `prefers-reduced-motion: reduce` → ALL durations 0.01ms `!important`. No exceptions.
-
----
-
-## 7. Elevation
-
-Dark mode: NO box-shadows. Use surface progression (surface-1 < surface-2 < surface-3) for depth.
-
-Light mode shadow scale (warm-tinted oklch):
-```
---shadow-xs: 0 1px 2px oklch(0.20 0.008 260 / 0.04);
---shadow-sm: 0 2px 4px oklch(0.20 0.008 260 / 0.05);
---shadow-md: 0 4px 12px oklch(0.20 0.008 260 / 0.08);
---shadow-lg: 0 12px 32px oklch(0.20 0.008 260 / 0.10);
-```
-
-Z-index scale:
-```
-dropdown: 1000 · sticky: 1020 · drawer: 1040 · modal: 1050 · tooltip: 1070 · toast: 1080 · cmdk: 1090
-```
-
----
-
-## 8. Do's & Don'ts (10 traced rules)
-
-### Do's
-1. **Right-align all quantitative columns + monospace + tabular-nums.** *(Tufte: data-ink, P10)*
-2. **Cmd+K is the primary search affordance, persistent in header.** *(developer-tool must-have, Doherty)*
-3. **Single accent color (brand-500). Status colors only for status.** *(Von Restorff: one focal)*
-4. **Empty state on every container: headline + copy + CTA.** *(P7, every empty = onboarding moment)*
-5. **Skeleton loaders for table data, NOT spinners.** *(skeleton-vs-spinner: known structure)*
-6. **Provider tokens are chart-only, never UI accents.** *(separate `--chart-*` from `--primary`)*
-7. **Opacity-based borders in dark mode (`oklch(1 0 0 / 0.08)`).** *(Linear discipline, P5 dark-mode)*
-8. **All interactive ≥ 32px height (44px touch target via padding).** *(Fitts, P2)*
-9. **Validation on blur, never on input. Preserve all input on error.** *(P7 input-validation, no-clear-on-error)*
-10. **Reduced-motion media query with `!important` in `@layer base`.** *(P6 mandatory, WCAG 2.3.3)*
-
-### Don'ts
-1. ❌ AI purple gradient `#6366F1` — using brand hue 265 with chroma 0.165 (lower)
-2. ❌ Cold grey `#F9FAFB` background — using `oklch(0.115 0.008 260)` (warm-cool tint)
-3. ❌ Dark mode = invert light — redesigning with surface progression
-4. ❌ Pure `#000` on `#FFF` — `oklch(0.95 0.005 260)` on `oklch(0.115 0.008 260)`
-5. ❌ Linear easing on UI — only on shimmer
-6. ❌ Decorative motion (`animate-bounce`, `animate-pulse` on icons) — only on loading/state
-7. ❌ Random sizes (17px, 23px) — strict scale ratio 1.25
-8. ❌ `font-weight: 500` everywhere — 600 heading, 400 body strict
-9. ❌ Emojis as icons — Lucide React only
-10. ❌ Borders without purpose — opacity surfaces over borders for grouping
-
----
-
-## 9. Responsive Behavior
-
-| Breakpoint | Layout |
+| Component | Contract |
 |---|---|
-| `< 768` (mobile) | Sidebar → full-screen drawer (hamburger). KPI strip → 2-up grid. Table → card list (vertical). Drawer → bottom sheet 90vh. |
-| `768–1023` (tablet) | Sidebar collapsible 56px → 240px. KPI 3-up. Table compresses (hide ctx col). |
-| `1024–1279` (laptop) | Full sidebar 240px. KPI 5-up. Table all cols. |
-| `≥ 1280` (desktop) | Same + drawer overlay (no layout push). |
-
-**Content priorities (mobile-first):**
-1. Search/Cmd+K (always)
-2. Model name + score + free/paid (always)
-3. Provider chip + TPS (≥768)
-4. Capability badges (≥1024)
-5. KPI strip (≥768)
-6. Detail drawer (≥1024 overlay, < 1024 full screen sheet)
+| Model table | 2 views: **Decide** (rank · model · lens score · signal meters · cost) and **Audit** (every score dimension). Rows are buttons: click and Enter/Space open the drawer; the nested chat action stops propagation. Sortable headers in **both** views |
+| Sort headers | A header that cannot sort must not look sortable - no pointer cursor, no hover, and `aria-sort` is always set |
+| Task lens | 6 lenses drive the primary sort and the headline score. A lens ranked on inferred data renders an inline warning, not a tooltip |
+| Detail drawer | 440px right slide, tabs Overview · Code · Metrics, copyable cURL + Python, "Open in chat" |
+| Command palette | ⌘K · Actions · Navigation · Recent chats · Models · Chat with… |
+| Chat | Shell owns the chrome; the conversation owns its toolbar (model picker + context meter). Switching model mid-thread **forks** into a new thread |
+| Vault indicator | Permanent header chrome on every surface, with inline unlock. The vault is in-memory by design, so a reload locks it - that must be visible before you send a message, not discovered from a 401 |
+| Every container | has an empty state, a loading state (skeletons, not spinners), and a distinct error state. "Backend unreachable" and "filters match nothing" are different screens |
+| Every surface | is wrapped in an `ErrorBoundary` scoped to the content, so a crash costs you the surface, not the app |
 
 ---
 
-## 10. Anti-Pattern Audit
+## 8. Accessibility
 
-Verified against `designer_get_anti_patterns(industry: developer-tool)` — all 35 patterns:
+- Focus ring on every interactive element: `2px solid var(--color-accent)`, offset 2px, set once in
+  `@layer base` via `:focus-visible`.
+- Interactive targets are ≥ 28px tall with padding to a comfortable hit area; table rows are 40px.
+- `aria-sort` on sortable headers, `aria-pressed` on toggles and chips, `role="switch"` +
+  `aria-checked` on filter switches, `role="alert"` on error states, `aria-label` on every icon-only
+  button.
+- Contrast: body text is `fg` on `bg` in both themes; `fg-subtle` is reserved for non-essential
+  labels that are never the only carrier of meaning.
+- Icons are Lucide. Never emoji.
 
-| Pattern | Status |
+---
+
+## 9. Responsive
+
+| Breakpoint | Behaviour |
 |---|---|
-| AI purple `#6366F1` | ✅ Custom hue 265, chroma 0.165 |
-| Hex/HSL tokens | ✅ OKLCH throughout |
-| Same primary for charts AND UI | ✅ Provider tokens separate |
-| Cold grey `#F9FAFB` | ✅ Warm-cool tinted neutrals |
-| Dark = invert | ✅ Redesigned with surface progression |
-| Pure `#000`/`#FFF` | ✅ Tinted near-black/near-white |
-| Random font sizes | ✅ Ratio 1.25 strict |
-| `font-weight: 500` everywhere | ✅ 600/400 contrast |
-| Positive tracking headings | ✅ Negative on display/headings |
-| LH 1.75 on app UI | ✅ 1.5 body, 1.1 display |
-| 3+ font families | ✅ Geist + Geist Mono |
-| Full-width body text | ✅ Max 65ch on prose |
-| Non-4px values | ✅ All multiples of 4 |
-| Same padding everywhere | ✅ Semantic spacing tokens |
-| No max-width content | ✅ 1440px page max |
-| No hover state | ✅ Hover on every interactive |
-| `outline: none` no replacement | ✅ 2px ring offset 2px |
-| Missing loading state | ✅ Skeleton on table, spinner on async actions |
-| Missing empty state | ✅ Empty-state contract on every container |
-| Touch targets < 44px | ✅ Min 32px height + padding to 44px hit |
-| Emojis as icons | ✅ Lucide React only |
-| Missing `cursor: pointer` | ✅ All clickables |
-| `animate-bounce` on icons | ✅ Reserved for loading |
-| No prefers-reduced-motion | ✅ `!important` in `@layer base` |
-| Transitions > 500ms | ✅ Max 240ms |
-| Linear easing | ✅ Only on shimmer |
-| Animating layout props | ✅ transform + opacity only |
-| Arbitrary z-index | ✅ Named scale |
-| No aspect-ratio on images | ✅ Always set |
-| Sticky nav no padding | ✅ Header 48px, content offset |
-| 24px spacing everywhere | ✅ Semantic scale |
-| All same chroma | ✅ Brand 0.165, neutrals 0.008 |
-| Pure `#000` on warm bg | ✅ Warm near-black |
-| Tables no row hover | ✅ Subtle `oklch(1 0 0 / 0.03)` |
-| Borders without purpose | ✅ Removed where redundant |
+| `< 640` | KPI strip 2-up, lens grid 2-up, table scrolls horizontally in its own container |
+| `640-1023` | KPI 3-up, lens 3-up |
+| `≥ 1024` | KPI 5-up, lens 6-up, full table |
+
+The table scrolls inside `overflow-x-auto`; the page body never scrolls sideways.
 
 ---
 
-## Stack
+## 10. Stack
 
-- **Framework:** Next.js 16 + React 19 (existing)
-- **Styling:** Tailwind v4 (CSS-first, `@theme` directive)
-- **Components:** shadcn/ui (Base UI edition) — replaces daisyui completely
-- **Icons:** Lucide React (existing)
-- **Fonts:** Geist + Geist Mono (Vercel)
-- **Motion:** CSS transitions only (no framer-motion needed for this scope)
-- **State:** Zustand (filters, drawer, cmdk) — replace useState scatter
-- **Data:** SWR (existing)
+| Layer | Choice |
+|---|---|
+| Framework | Next.js 16.2.10 · React 19.2.4 |
+| Styling | Tailwind v4, CSS-first `@theme` |
+| Components | **Base UI** (`@base-ui-components/react`, `@base-ui/react`) + `cmdk` |
+| Table | TanStack Table v8 |
+| Server state | **TanStack Query v5** |
+| Client state | Zustand v5 with `persist` |
+| Icons | Lucide React |
+| Fonts | Plus Jakarta Sans · Lora · Geist Mono |
+| Theme | `next-themes`, `attribute="data-theme"` |
+| Chat | Vercel AI SDK v6 (`ai`, `@ai-sdk/react`, `@ai-sdk/openai-compatible`) |
+| Storage | IndexedDB via `idb` |
+| Motion | CSS transitions only |
+| Deploy | OpenNext → Cloudflare Workers |

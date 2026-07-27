@@ -20,8 +20,3 @@ export function useVaultStatus(): VaultStatus {
 
   return status;
 }
-
-/** Does the vault currently hold a usable key for this model's provider? */
-export function useHasKeyFor(providerId: string | null): boolean {
-  return useVaultStore((s) => (providerId ? Boolean(s.secrets[providerId as never]) : false));
-}

@@ -204,3 +204,34 @@ def test_uptime_as_percentage_does_not_explode_overall():
     r = score_models([m])[0]
     assert 0 <= r["scores"]["reliability"] <= 100
     assert 0 <= r["scores"]["overall"] <= 100
+
+
+def test_the_most_expensive_model_scores_zero_affordability_not_neutral_fifty():
+    """`_norm(...) or 50.0` swallowed a legitimate 0.0.
+
+    The cheapest model in a pool normalizes to 100 and the dearest to exactly 0 - and 0 is falsy, so
+    the worst-priced model in the market was quietly promoted to 50, the value that means "we do not
+    know this model's price". The two are opposite claims and must not share a number.
+    """
+    r = _by_id(score_models([
+        _m(id="cheap", price_in=1e-6, price_out=1e-6, intel=30),
+        _m(id="dear", price_in=1e-3, price_out=1e-3, intel=30),
+    ]))
+    assert r["dear"]["scores"]["affordability"] == 0.0
+    assert r["cheap"]["scores"]["affordability"] == 100.0
+
+
+def test_an_unknown_price_is_still_the_cautious_neutral():
+    """The fallback itself is unchanged - only reaching it by accident was the bug."""
+    r = _by_id(score_models([_m(id="unpriced", price_in=None, price_out=None, intel=30)]))
+    assert r["unpriced"]["scores"]["affordability"] == 60.0
+    assert r["unpriced"]["scores"]["value"] == 50.0
+
+
+def test_worst_value_in_the_pool_is_also_not_promoted_to_neutral():
+    r = _by_id(score_models([
+        _m(id="great", price_in=1e-9, price_out=1e-9, intel=60),
+        _m(id="awful", price_in=1e-2, price_out=1e-2, intel=5),
+    ]))
+    assert r["awful"]["scores"]["value"] == 0.0
+    assert r["great"]["scores"]["value"] == 100.0

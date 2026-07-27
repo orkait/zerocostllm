@@ -3,7 +3,10 @@ import { accountIdKey, type SecretKey } from "./vault";
 
 /** The API-keys form, derived from the provider registry rather than re-declared beside it. Adding
  *  a provider to @/config/providers adds its field here; flipping `needsAccountId` adds the second
- *  credential. Neither one needs this file edited. */
+ *  credential. Neither one needs this file edited.
+ *
+ *  Providers with `needsKey: false` are skipped: a local server authenticates by being reachable,
+ *  so a field for it would collect a credential nothing ever reads. */
 
 export type VaultField = {
   key: SecretKey;
@@ -13,6 +16,7 @@ export type VaultField = {
 };
 
 export const VAULT_FIELDS: readonly VaultField[] = PROVIDER_LIST.flatMap((provider) => {
+  if (!provider.needsKey) return [];
   const keyField: VaultField = {
     key: provider.id,
     label: provider.label,
