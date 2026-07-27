@@ -52,6 +52,7 @@
   --color-provider-cerebras: oklch(0.54 0.14 290);
   --color-provider-cloudflare: oklch(0.64 0.15 60);
   --color-provider-local: oklch(0.50 0.09 145);
+  --color-provider-nvidia: oklch(0.58 0.16 130);
 
   /* ============ TYPOGRAPHY ============ */
   --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
@@ -207,6 +208,7 @@
   --color-provider-cerebras: oklch(0.68 0.14 290);
   --color-provider-cloudflare: oklch(0.78 0.15 60);
   --color-provider-local: oklch(0.66 0.10 145);
+  --color-provider-nvidia: oklch(0.72 0.17 130);
 }
 
 /* Pre-hydration fallback only. layout.tsx stamps an explicit data-theme before paint, so this is

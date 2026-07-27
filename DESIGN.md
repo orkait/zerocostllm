@@ -13,8 +13,10 @@ and this file is a bug.
 
 ## 1. Identity
 
-**Product:** real-time market intelligence for free LLM models across 7 providers, plus an
-OpenAI-compatible proxy and a chat client for them.
+**Product:** real-time market intelligence for free LLM models across every provider in
+`src/config/providers.ts`, plus an OpenAI-compatible proxy and a chat client for them. The count is
+derived from the registry wherever it is shown - it was hardcoded as "7 providers" and stayed that
+way through two additions.
 
 **Personality:** warm-editorial density. Information-first, but not cold - a serif display face over
 a dense data table, on ivory rather than clinical grey.
@@ -79,10 +81,12 @@ hardcoded hue-265 blue left behind by the palette that no longer exists.
 ### Provider tokens - avatars and charts only, never UI accents
 
 `openrouter` 35 · `ollama` 200 · `aistudio` 90 · `groq` 25 · `cerebras` 290 · `cloudflare` 60 ·
-`local` 145.
+`local` 145 · `nvidia` 130.
 
-`local` is your own machine. Its green is deliberately the quietest of the seven: it is the only
-tier that is free without qualification, and it should read as calm, not as a status badge.
+`local` is your own machine. Its green is deliberately the quietest of the set: it is the only tier
+that is free without qualification, and it should read as calm, not as a status badge. `nvidia` sits
+next to it in hue on purpose - NVIDIA's own brand green - but at much higher chroma, so the two
+never read as the same provider at a glance.
 
 ---
 

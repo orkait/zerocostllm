@@ -19,6 +19,26 @@ describe("provider registry", () => {
     expect(providerForModel("ollama/qwen3")).toBe("ollama");
     expect(providerForModel("openrouter/anthropic/claude-3-opus")).toBe("openrouter");
     expect(providerForModel("local/Ternary-Bonsai-27B")).toBe("local");
+    expect(providerForModel("nim/meta/llama-3.1-8b-instruct")).toBe("nvidia");
+  });
+
+  it("NIM is routed as nim/, so OpenRouter's NVIDIA-authored models stay OpenRouter's", () => {
+    // NVIDIA is an AUTHOR on OpenRouter, which serves ids like "nvidia/nemotron-3-super-120b-a12b".
+    // A `nvidia/` route prefix could not be told apart from those - the market listed them twice
+    // and the provider filter claimed OpenRouter's rows as NIM's.
+    expect(providerForModel("nim/nvidia/nemotron-4-340b-instruct")).toBe("nvidia");
+    expect(providerForModel("nvidia/nemotron-3-super-120b-a12b")).toBe(FALLBACK_PROVIDER);
+    expect(PROVIDER_BY_BACKEND_LABEL["NVIDIA NIM"]).toBe("nvidia");
+  });
+
+  it("no route prefix may shadow an OpenRouter author segment", () => {
+    // The general form of the bug above. OpenRouter ids are `author/model`, so any prefix equal to
+    // an author name makes those models unroutable. These are real OpenRouter authors.
+    const openRouterAuthors = ["nvidia", "google", "meta-llama", "qwen", "anthropic", "openai", "mistralai", "deepseek"];
+    const prefixes = PROVIDER_IDS.filter((id) => id !== FALLBACK_PROVIDER).map((id) => PROVIDERS[id].prefix);
+    for (const prefix of prefixes) {
+      expect(openRouterAuthors).not.toContain(prefix.replace(/\/$/, ""));
+    }
   });
 
   it("a local model is NOT mistaken for an OpenRouter one", () => {

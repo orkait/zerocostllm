@@ -13,6 +13,7 @@ export const PROVIDER_IDS = [
   "ollama",
   "cloudflare",
   "local",
+  "nvidia",
 ] as const;
 
 export type ProviderId = (typeof PROVIDER_IDS)[number];
@@ -52,6 +53,11 @@ export const PROVIDERS: Readonly<Record<ProviderId, ProviderSpec>> = {
   // needsKey is false because presence on LOCAL_LLM_BASE_URL is the only auth there is - offering a
   // key field would ask for a credential that nothing reads.
   local: { id: "local", label: "Local", shortLabel: "Local", backendLabel: "Local", prefix: "local/", dotVar: "var(--color-provider-local)", keyHint: "", needsAccountId: false, needsKey: false },
+  // `nim/`, NOT `nvidia/`: NVIDIA is an author on OpenRouter, which serves ids like
+  // "nvidia/nemotron-3-super-120b-a12b". A `nvidia/` prefix could not be told apart from those.
+  // NIM ids already carry their own author, so a routed id reads "nim/meta/llama-3.1-8b" -
+  // route first, author second.
+  nvidia: { id: "nvidia", label: "NVIDIA NIM", shortLabel: "NVIDIA", backendLabel: "NVIDIA NIM", prefix: "nim/", dotVar: "var(--color-provider-nvidia)", keyHint: "nvapi-...", needsAccountId: false, needsKey: true },
 } as const;
 
 /** Backend provider name -> our provider id. Derived, so it cannot drift from PROVIDERS. */
