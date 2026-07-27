@@ -15,9 +15,11 @@ type PickModel = (modelId: string) => void;
 export function ChatEmptyState({ models }: { models: ModelStats[] }) {
   const startNewChat = useChatSessionStore((state) => state.startNewChat);
 
-  const suggested = useMemo(
-    () => models.filter((model) => model.is_free).slice(0, EMPTY_STATE_MODEL_COUNT),
-    [models],
+  const free = useMemo(() => models.filter((model) => model.is_free), [models]);
+  const suggested = useMemo(() => free.slice(0, EMPTY_STATE_MODEL_COUNT), [free]);
+  const providerCount = useMemo(
+    () => new Set(free.map((model) => model.provider)).size,
+    [free],
   );
 
   const handlePick = useCallback((modelId: string) => startNewChat(modelId), [startNewChat]);
@@ -28,8 +30,13 @@ export function ChatEmptyState({ models }: { models: ModelStats[] }) {
         <Sparkles className="w-5 h-5" />
       </div>
       <h2 className="serif text-4xl font-semibold">Pick a model to start</h2>
+      {/* Counted from the market that is actually loaded. It read "300+ free models across 7
+          providers" as a hardcoded string, which was a claim nothing checked and which went stale
+          the moment a provider was added. */}
       <p className="text-sm text-(--color-fg-muted) mt-1 mb-6">
-        300+ free models across 7 providers.
+        {free.length > 0
+          ? `${free.length} free models across ${providerCount} providers.`
+          : "Free models across every provider you have a key for."}
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-dialog w-full">
         {suggested.map((model) => (

@@ -70,6 +70,28 @@ def test_a_local_model_is_not_routed_as_openrouter():
     assert "api_base" in extra
 
 
+def test_an_nvidia_model_routes_to_litellms_native_nim_provider(monkeypatch):
+    """`nvidia_nim/` is litellm's own provider id - it owns the base URL and the NVIDIA_NIM_API_KEY
+    lookup, so we must not hand-roll an openai/ + api_base route for it."""
+    monkeypatch.delenv("NVIDIA_NIM_API_BASE", raising=False)
+    routed, extra = resolve_model("nim/meta/llama-3.1-8b-instruct")
+    assert routed == "nvidia_nim/meta/llama-3.1-8b-instruct"
+    # No api_base on the default endpoint: overriding it is litellm's job unless we were told to.
+    assert "api_base" not in extra
+
+
+def test_a_self_hosted_nim_endpoint_is_passed_through(monkeypatch):
+    monkeypatch.setenv("NVIDIA_NIM_API_BASE", "http://nim.internal:8000/v1")
+    _routed, extra = resolve_model("nim/meta/llama-3.1-8b-instruct")
+    assert extra["api_base"] == "http://nim.internal:8000/v1"
+
+
+def test_an_nvidia_model_accepts_a_byok_key(monkeypatch):
+    monkeypatch.setenv("NVIDIA_NIM_API_KEY", "server-nvapi")
+    _routed, extra = resolve_model("nim/meta/llama-3.1-8b-instruct", user_key="user-nvapi")
+    assert extra["api_key"] == "user-nvapi"
+
+
 def test_a_local_model_never_carries_the_callers_provider_key():
     """BYOK is meaningless for a server on your own machine, and forwarding someone's OpenRouter
     key to 127.0.0.1 is a credential going somewhere it has no business being."""

@@ -38,6 +38,15 @@ from providers.local import (
     strip_reasoning,
     strip_reasoning_chunk,
 )
+from providers.nvidia import (
+    fetch_nvidia_models,
+    build_nvidia_market_stats,
+    is_nvidia_model,
+    strip_nvidia_prefix,
+    get_nvidia_api_key,
+    get_nvidia_base_url,
+    NVIDIA_DEFAULT_BASE_URL,
+)
 from providers.cloudflare import (
     fetch_cloudflare_models,
     build_cloudflare_market_stats,
@@ -342,6 +351,16 @@ def resolve_model(
             "api_base": cloudflare_openai_base(cf_account_id or env_account),
             "api_key": user_key or env_key,
         }
+
+    if is_nvidia_model(model_id):
+        # litellm has a native nvidia_nim provider, so the base URL is its concern - api_base is
+        # passed only when the operator has overridden it.
+        slug = strip_nvidia_prefix(model_id)
+        nvidia_extra: dict[str, Any] = {"api_key": user_key or get_nvidia_api_key()}
+        base = get_nvidia_base_url()
+        if base != NVIDIA_DEFAULT_BASE_URL:
+            nvidia_extra["api_base"] = base
+        return f"nvidia_nim/{slug}", nvidia_extra
 
     if is_local_model(model_id):
         # Local server speaks the OpenAI API, so it rides the generic openai/ path with
@@ -683,6 +702,7 @@ async def _compute_rankings() -> list[dict]:
         cerebras_raw,
         cloudflare_raw,
         local_raw,
+        nvidia_raw,
     ) = await asyncio.gather(
         fetch_market_data(),
         fetch_unified_market_stats(),
@@ -690,6 +710,7 @@ async def _compute_rankings() -> list[dict]:
         fetch_cerebras_models(),
         fetch_cloudflare_models(),
         fetch_local_models(),
+        fetch_nvidia_models(),
     )
 
     ollama_stats, aistudio_stats = unified_extra
@@ -697,8 +718,12 @@ async def _compute_rankings() -> list[dict]:
     cerebras_stats = build_cerebras_market_stats(cerebras_raw)
     cloudflare_stats = build_cloudflare_market_stats(cloudflare_raw)
     local_stats = build_local_market_stats(local_raw)
+    nvidia_stats = build_nvidia_market_stats(nvidia_raw)
 
-    extras = ollama_stats + aistudio_stats + groq_stats + cerebras_stats + cloudflare_stats + local_stats
+    extras = (
+        ollama_stats + aistudio_stats + groq_stats + cerebras_stats
+        + cloudflare_stats + local_stats + nvidia_stats
+    )
     all_stats = openrouter_stats + extras
     if not all_stats:
         return []

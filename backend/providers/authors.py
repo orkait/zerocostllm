@@ -30,6 +30,20 @@ _AUTHOR_LABELS: dict[str, str] = {
     "moonshotai": "Moonshot AI",
     "zai-org": "Z.AI",
     "z-ai": "Z.AI",
+    # NVIDIA NIM ids carry an author segment too, and these are the ones whose title-cased form
+    # would be wrong or ugly ("Ai21Labs", "01 Ai", "Nv-Mistralai").
+    "meta": "Meta",
+    "ai21labs": "AI21",
+    "01-ai": "01.AI",
+    "aisingapore": "AI Singapore",
+    "bigcode": "BigCode",
+    "deepseek-ai": "DeepSeek",
+    "minimaxai": "MiniMax",
+    "moonshotai": "Moonshot AI",
+    "nv-mistralai": "NVIDIA + Mistral",
+    "stepfun-ai": "StepFun",
+    "thinkingmachines": "Thinking Machines",
+    "ibm": "IBM",
 }
 
 
